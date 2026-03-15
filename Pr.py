@@ -1,4 +1,5 @@
 import re
+import datetime
 import asyncio
 import random
 import telebot
@@ -7,87 +8,70 @@ from os import system, name
 from bin import get_bin_info
 from apis import apid, apihasd, token
 
-# --- CONFIGURACIÓN ---
 client = TelegramClient('scrapfree', apid, apihasd)
+client.parse_mode = 'html'
 bot = telebot.TeleBot(token, parse_mode="html")
 
 id_channel = -1002450247913
 id_alert_channel = -1002432179007
 
-# Usamos un set en memoria para evitar duplicados sin usar archivos .txt
+keywords = ['Card Issuer Declined CVV', 'Approved! ✅', 'Card Issuer Declined CVV', '1000: Approved', 'CVC Declined ', 'CVV2 DECLINED', '𝒔𝒖𝒄𝒄𝒆𝒆𝒅𝒆𝒅', '𝑹𝒆𝒔𝒑𝒐𝒏𝒔𝒆 -» 𝑨𝒑𝒑𝒓𝒐𝒗𝒆𝒅', ' CVV_NOT_PROCESSED', 'Request was processed successfully.', 'Invalid Card Verification Number (CVN)', 'succeeded', 'DECLINED CVV2', 'Gateway Rejected: cvv', "Your card's security code is incorrect", '1000 Approved', 'Insufficient Funds', 'Your card has insufficient funds', 'Gateway Rejected: avs_and_cvv', 'Verified', 'CVV_MATCHED']
+
+cards_process = {}
 processed_ccs = set()
-cards_process_count = {}
 
-# --- LÓGICA DE PROCESAMIENTO ---
-
-async def process_card(cc, mes, ano, cvv):
-    """Tarea independiente para cada tarjeta"""
-    # Evitar procesar la misma CC más de 3 veces en la sesión actual
-    if cards_process_count.get(cc, 0) >= 3:
-        return
-    
-    # Marcamos como procesada para evitar duplicados inmediatos
-    processed_ccs.add(cc)
-    
-    # Simulamos el delay de 31.5s sin bloquear a los demás chats
+async def send_card(cc, mes, ano, cvv, x):
     await asyncio.sleep(31.5)
-
-    try:
-        bin_data = get_bin_info(cc[:6])
-        random_digits = "".join(random.choice("0123456789") for _ in range(6))
-        random_month = random.randint(1, 12)
-        random_year = random.randint(2025, 2030)
-
-        text = f"""<b><a href="https://raw.githubusercontent.com/VSXX-SCRP/Code/main/scrp.jpg">&#8203;</a>
+    random_digits = "".join(random.choice("0123456789") for _ in range(6))
+    random_month = random.randint(1, 12)
+    random_year = random.randint(2025, 2030)
+    
+    text = f"""<b><a href="https://raw.githubusercontent.com/VSXX-SCRP/Code/main/scrp.jpg">&#8203;</a>
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] 𝐕𝐒𝐗𝐗 𝐒𝐂𝐑𝐀𝐏𝐏𝐄𝐑  - 【 𝐅𝐑𝐄𝐄 】 
 ━━━━━━━━━━━━━━━━
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] #bin{cc[:6]}
 ━━━━━━━━━━━━━━━━
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] CC ➫ <code>{cc}|{mes}|{ano}|{cvv}</code>
 ━━━━━━━━━━━━━━━━
-[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Country ➫ <code>{bin_data.get("country")}</code> | <code>{bin_data.get("flag")}</code>
-[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Type ➫ <code>{bin_data.get("type")}</code> | <code>{bin_data.get("vendor")}</code>
-[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Level ➫ <code>{bin_data.get("level")}</code>
-[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Bank ➫ <code>{bin_data.get("bank_name")}</code> 
+[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Country ➫ <code>{x.get("country")}</code> | <code>{x.get("flag")}</code>
+[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Type ➫ <code>{x.get("type")}</code> | <code>{x.get("vendor")}</code>
+[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Level ➫ <code>{x.get("level")}</code>
+[<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Bank ➫ <code>{x.get("bank_name")}</code> 
 ━━━━━━━━━━━━━━━━
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Extra ➫ <code>{cc[:6]}{random_digits}xxxx|{random_month:02d}|{random_year}|rnd</code>
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Powered by ➫ <a href="https://t.me/CL0UD_ADMIN">@CL0UD_ADMIN 🥀</a>
 </b>"""
-
-        try:
-            bot.send_message(id_channel, text)
-        except Exception:
-            bot.send_message(id_channel, text, disable_web_page_preview=True)
-
-        cards_process_count[cc] = cards_process_count.get(cc, 0) + 1
-
-    except Exception as e:
-        print(f"Error procesando {cc}: {e}")
+    try:
+        bot.send_message(id_channel, text, parse_mode="HTML")
+    except:
+        bot.send_message(id_channel, text, disable_web_page_preview=True)
 
 @client.on(events.NewMessage)
-async def main_handler(event):
-    if not event.raw_text:
+async def edited_event(event):
+    if not event.raw_text or event.date.year <= 2025:
+        return
+    
+    text_msg = event.raw_text
+    card_pattern = re.compile(r'\b(\d{16})\|(\d{2})\|(\d{4})\|(\d{3})\b')
+    matches = card_pattern.findall(text_msg)
+    
+    if not matches:
         return
 
-    # Regex que busca el formato CC|MES|AÑO|CVV
-    card_pattern = re.compile(r'\b(\d{16})\|(\d{2})\|(\d{4})\|(\d{3})\b')
-    matches = card_pattern.findall(event.raw_text)
+    cc, mes, ano, cvv = matches[0]
+    
+    if cc in processed_ccs or cards_process.get(cc, 0) >= 3:
+        return
 
-    for match in matches:
-        cc, mes, ano, cvv = match
-        
-        # Filtro de duplicados en memoria
-        if cc in processed_ccs and cards_process_count.get(cc, 0) >= 1:
-            continue
-
-        # Lanza la tarea al fondo y sigue escuchando otros chats
-        asyncio.create_task(process_card(cc, mes, ano, cvv))
+    x = get_bin_info(cc[:6])
+    processed_ccs.add(cc)
+    cards_process[cc] = cards_process.get(cc, 0) + 1
+    
+    asyncio.create_task(send_card(cc, mes, ano, cvv, x))
 
 async def main():
     system('cls' if name == 'nt' else 'clear')
-    print('--- SCRAPER ACTIVO (SIN TXT / MULTITAREA) ---')
     print('@CL0UD_ADMIN')
-    
     await client.start()
     await client.run_until_disconnected()
 
