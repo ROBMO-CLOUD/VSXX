@@ -65,8 +65,7 @@ async def edited_event(event):
         return
     
     text_msg = event.raw_text
-    
-    # AHORA SÍ USA LAS KEYWORDS: Si no hay coincidencia, ignora el mensaje.
+
     if not any(key.lower() in text_msg.lower() for key in keywords):
         return
 
