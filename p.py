@@ -15,18 +15,26 @@ bot = telebot.TeleBot(token, parse_mode="html")
 id_channel = -1002450247913
 id_alert_channel = -1002432179007
 
+envio_controlado = asyncio.Semaphore(3)
+
 keywords = ['Card Issuer Declined CVV', 'Approved! ✅', 'Card Issuer Declined CVV', '1000: Approved', 'CVC Declined ', 'CVV2 DECLINED', '𝒔𝒖𝒄𝒄𝒆𝒆𝒅𝒆𝒅', '𝑹𝒆𝒔𝒑𝒐𝒏𝒔𝒆 -» 𝑨𝒑𝒑𝒓𝒐𝒗𝒆𝒅', ' CVV_NOT_PROCESSED', 'Request was processed successfully.', 'Invalid Card Verification Number (CVN)', 'succeeded', 'DECLINED CVV2', 'Gateway Rejected: cvv', "Your card's security code is incorrect", '1000 Approved', 'Insufficient Funds', 'Your card has insufficient funds', 'Gateway Rejected: avs_and_cvv', 'Verified', 'CVV_MATCHED']
 
 cards_process = {}
 processed_ccs = set()
 
 async def send_card(cc, mes, ano, cvv, x):
-    await asyncio.sleep(31.5)
-    random_digits = "".join(random.choice("0123456789") for _ in range(6))
-    random_month = random.randint(1, 12)
-    random_year = random.randint(2025, 2030)
-    
-    text = f"""<b><a href="https://raw.githubusercontent.com/VSXX-SCRP/Code/main/scrp.jpg">&#8203;</a>
+    async with envio_controlado:
+        await asyncio.sleep(31.5)
+        
+        if len(processed_ccs) > 1000:
+            processed_ccs.clear()
+            cards_process.clear()
+
+        random_digits = "".join(random.choice("0123456789") for _ in range(6))
+        random_month = random.randint(1, 12)
+        random_year = random.randint(2026, 2030)
+        
+        text = f"""<b><a href="https://raw.githubusercontent.com/VSXX-SCRP/Code/main/scrp.jpg">&#8203;</a>
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] 𝐕𝐒𝐗𝐗 𝐒𝐂𝐑𝐀𝐏𝐏𝐄𝐑  - 【 𝐅𝐑𝐄𝐄 】 
 ━━━━━━━━━━━━━━━━
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] #bin{cc[:6]}
@@ -41,10 +49,15 @@ async def send_card(cc, mes, ano, cvv, x):
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Extra ➫ <code>{cc[:6]}{random_digits}xxxx|{random_month:02d}|{random_year}|rnd</code>
 [<a href="https://t.me/+CqNAreUKC_tiYzFh">么</a>] Powered by ➫ <a href="https://t.me/CL0UD_ADMIN">@CL0UD_ADMIN 🥀</a>
 </b>"""
-    try:
-        bot.send_message(id_channel, text, parse_mode="HTML")
-    except:
-        bot.send_message(id_channel, text, disable_web_page_preview=True)
+        try:
+            bot.send_message(id_channel, text, parse_mode="HTML")
+            await asyncio.sleep(1) 
+        except Exception as e:
+            if "FloodWait" in str(e):
+                wait_time = int(re.findall(r'\d+', str(e))[0])
+                await asyncio.sleep(wait_time)
+            else:
+                bot.send_message(id_channel, text, disable_web_page_preview=True)
 
 @client.on(events.NewMessage)
 async def edited_event(event):
@@ -52,6 +65,11 @@ async def edited_event(event):
         return
     
     text_msg = event.raw_text
+    
+    # AHORA SÍ USA LAS KEYWORDS: Si no hay coincidencia, ignora el mensaje.
+    if not any(key.lower() in text_msg.lower() for key in keywords):
+        return
+
     card_pattern = re.compile(r'\b(\d{16})\|(\d{2})\|(\d{4})\|(\d{3})\b')
     matches = card_pattern.findall(text_msg)
     
